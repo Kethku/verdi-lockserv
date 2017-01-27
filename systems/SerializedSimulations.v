@@ -140,4 +140,116 @@ Section SerializedCorrect.
   by rewrite H_eq {H_eq fp}. 
   Qed.
 
+  Definition deserialize_packet (p : @packet _ multi_params) : option (@packet _ orig_multi_params) :=
+    match (deserialize (pBody p)) with
+    | None => None
+    | Some (body, _) =>
+      Some (@mkPacket _ orig_multi_params (pSrc p) (pDst p) body)
+    end.
+
+  Definition deserialize_net (net: @network _ multi_params) :  (@network _ orig_multi_params) :=
+    mkNetwork
+      (filterMap deserialize_packet (nwPackets net))
+      (fun h => match (deserialize (nwState net h)) with
+               | Some (data, _) => data
+               | None => init_handlers h
+               end).
+
+  Definition deserialize_tr_entry (e : @name _ multi_params * (@input base_params + list (@output base_params))) :
+    option (@name _ orig_multi_params * (@input orig_base_params + list (@output orig_base_params))) :=
+  let (n, s) := e in
+  match s with
+  | inl i => 
+    match deserialize i with
+    | Some (data, _) => Some (n, inl data)
+    | None => None
+    end
+  | inr lo => Some (n, inr (filterMap (fun o => match deserialize o with Some (data, _) => Some data | None => None end) lo))
+  end.
+
+  Lemma step_async_serialized_simulation_2 :
+    forall net net' tr unet,
+      @step_async _ multi_params net net' tr ->
+      serialize_net unet = net ->
+      exists unet' utr,
+        @step_async _  orig_multi_params unet unet' utr /\
+        serialize_net unet' = net' /\
+        map serialize_tr_entry utr = tr.
+  Proof.
+  Admitted.
+
+  Lemma step_async_serialize_ex_simulation_star :
+    forall net tr,
+      @step_async_star _ multi_params step_async_init net tr ->
+      exists unet utr, 
+        @step_async_star _ orig_multi_params step_async_init unet utr /\
+        serialize_net unet = net /\
+        map serialize_tr_entry utr = tr.
+  Proof.
+  move => net tr H_step.
+  remember step_async_init as y in *.
+  move: Heqy.
+  induction H_step using refl_trans_1n_trace_n1_ind => H_init /=.
+    rewrite H_init /step_async_init /= /tot_map_net /=.
+    exists {| nwPackets := []; nwState := init_handlers |}.
+    exists [].
+    by split; first exact: RT1nTBase.
+  concludes.
+  repeat find_rewrite.
+  break_exists.
+  break_and.
+  have H_star := step_async_serialized_simulation_2 _ _ _ _ H H1.
+  break_exists.
+  break_and.
+  exists x2.
+  exists (x1 ++ x3).
+  split.
+    apply: (refl_trans_1n_trace_trans H0).
+    rewrite (app_nil_end x3).
+    apply: (@RT1nTStep _ _ _ _ x2) => //.
+    exact: RT1nTBase.
+  split => //.
+  rewrite map_app.
+  by rewrite H2 H5.  
+  Qed.
+
+  Lemma deserialize_serialize_net_id : forall net,
+      deserialize_net (serialize_net net) = net.
+  Proof.
+  case => ps nwS.
+  rewrite /deserialize_net /serialize_net /=.
+  set ps' := filterMap _ _.
+  set nwSf := fun _ => _.
+  have H_p: ps' = ps.
+    rewrite /ps'.
+    clear.
+    rewrite /deserialize_packet.
+    elim: ps => [|p ps IH] //=.
+    rewrite serialize_deserialize_id_nil IH.
+    by case: p.
+  have H_s: nwSf = nwS.
+    rewrite /nwSf.
+    apply functional_extensionality.
+    move => n.
+    by rewrite serialize_deserialize_id_nil.
+  by rewrite H_p H_s.
+  Qed.
+
+  Lemma filterMap_deserialize_tr_entry_map_serialize_id :
+    forall tr, filterMap deserialize_tr_entry (map serialize_tr_entry tr) = tr.
+  Proof.
+  elim => //=.
+  case => n. 
+  case => [i|o] l IH; rewrite /deserialize_tr_entry /serialize_tr_entry /=.
+  - by rewrite serialize_deserialize_id_nil /= IH.
+  - rewrite IH.
+    set fMo := filterMap _ _.
+    suff H_suff: fMo = o by rewrite H_suff.
+    rewrite /fMo.
+    clear.
+    elim: o => //=.
+    move => o l IH.
+    by rewrite serialize_deserialize_id_nil /= IH.
+  Qed.
+
 End SerializedCorrect.
