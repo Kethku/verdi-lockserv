@@ -11,7 +11,6 @@ Require Import mathcomp.ssreflect.ssreflect.
 Section SerializedCorrect.
   Context {orig_base_params : BaseParams}.
   Context {orig_multi_params : MultiParams orig_base_params}.
-  Context {orig_data_serializer : Serializer data}.
   Context {orig_input_serializer : Serializer input}.
   Context {orig_output_serializer : Serializer output}.
   Context {orig_msg_serializer : Serializer msg}.
@@ -33,7 +32,7 @@ Section SerializedCorrect.
   Instance orig_base_params_tot_map :
     BaseParamsTotalMap orig_base_params base_params :=
   {
-    tot_map_data := serialize;
+    tot_map_data := id;
     tot_map_input := serialize;
     tot_map_output := serialize
   }.
@@ -57,7 +56,7 @@ Section SerializedCorrect.
     rewrite /tot_mapped_net_handlers /= /tot_map_name_msgs /= /id /=.
     repeat break_let.
     rewrite /serialized_net_handlers.
-    rewrite 2!serialize_deserialize_id_nil.
+    rewrite serialize_deserialize_id_nil.
     rewrite /serialize_handler_result.
     repeat break_let.
     find_injection.
@@ -74,7 +73,7 @@ Section SerializedCorrect.
     rewrite /tot_mapped_input_handlers /=.
     repeat break_let.
     unfold serialized_input_handlers in *.
-    rewrite 2!serialize_deserialize_id_nil.
+    rewrite serialize_deserialize_id_nil.
     rewrite /serialize_handler_result /id /tot_map_name_msgs /tot_map_name /= /id /=.
     repeat break_let.
     find_injection.
@@ -96,7 +95,7 @@ Section SerializedCorrect.
               (serialize (pBody p)).
 
   Definition serialize_net (net : @network _ orig_multi_params) : (@network _ multi_params) :=
-    @mkNetwork _ multi_params (map serialize_packet (nwPackets net)) (fun n => serialize (net.(nwState) n)).
+    @mkNetwork _ multi_params (map serialize_packet (nwPackets net)) net.(nwState).
 
   Definition serialize_tr_entry (e : @name _ orig_multi_params * (@input orig_base_params + list (@output orig_base_params))) : 
   @name _ multi_params * (@input base_params + list (@output base_params)) := 
@@ -148,12 +147,7 @@ Section SerializedCorrect.
     end.
 
   Definition deserialize_net (net: @network _ multi_params) :  (@network _ orig_multi_params) :=
-    mkNetwork
-      (filterMap deserialize_packet (nwPackets net))
-      (fun h => match (deserialize (nwState net h)) with
-               | Some (data, _) => data
-               | None => init_handlers h
-               end).
+    mkNetwork (filterMap deserialize_packet (nwPackets net)) net.(nwState).
 
   Definition deserialize_tr_entry (e : @name _ multi_params * (@input base_params + list (@output base_params))) :
     option (@name _ orig_multi_params * (@input orig_base_params + list (@output orig_base_params))) :=
@@ -167,59 +161,12 @@ Section SerializedCorrect.
   | inr lo => Some (n, inr (filterMap (fun o => match deserialize o with Some (data, _) => Some data | None => None end) lo))
   end.
 
-  Lemma step_async_serialized_simulation_2 :
-    forall net net' tr unet,
-      @step_async _ multi_params net net' tr ->
-      serialize_net unet = net ->
-      exists unet' utr,
-        @step_async _  orig_multi_params unet unet' utr /\
-        serialize_net unet' = net' /\
-        map serialize_tr_entry utr = tr.
-  Proof.
-  Admitted.
-
-  Lemma step_async_serialize_ex_simulation_star :
-    forall net tr,
-      @step_async_star _ multi_params step_async_init net tr ->
-      exists unet utr, 
-        @step_async_star _ orig_multi_params step_async_init unet utr /\
-        serialize_net unet = net /\
-        map serialize_tr_entry utr = tr.
-  Proof.
-  move => net tr H_step.
-  remember step_async_init as y in *.
-  move: Heqy.
-  induction H_step using refl_trans_1n_trace_n1_ind => H_init /=.
-    rewrite H_init /step_async_init /= /tot_map_net /=.
-    exists {| nwPackets := []; nwState := init_handlers |}.
-    exists [].
-    by split; first exact: RT1nTBase.
-  concludes.
-  repeat find_rewrite.
-  break_exists.
-  break_and.
-  have H_star := step_async_serialized_simulation_2 _ _ _ _ H H1.
-  break_exists.
-  break_and.
-  exists x2.
-  exists (x1 ++ x3).
-  split.
-    apply: (refl_trans_1n_trace_trans H0).
-    rewrite (app_nil_end x3).
-    apply: (@RT1nTStep _ _ _ _ x2) => //.
-    exact: RT1nTBase.
-  split => //.
-  rewrite map_app.
-  by rewrite H2 H5.  
-  Qed.
-
   Lemma deserialize_serialize_net_id : forall net,
       deserialize_net (serialize_net net) = net.
   Proof.
   case => ps nwS.
   rewrite /deserialize_net /serialize_net /=.
   set ps' := filterMap _ _.
-  set nwSf := fun _ => _.
   have H_p: ps' = ps.
     rewrite /ps'.
     clear.
@@ -227,12 +174,7 @@ Section SerializedCorrect.
     elim: ps => [|p ps IH] //=.
     rewrite serialize_deserialize_id_nil IH.
     by case: p.
-  have H_s: nwSf = nwS.
-    rewrite /nwSf.
-    apply functional_extensionality.
-    move => n.
-    by rewrite serialize_deserialize_id_nil.
-  by rewrite H_p H_s.
+  by rewrite H_p.
   Qed.
 
   Lemma filterMap_deserialize_tr_entry_map_serialize_id :
@@ -250,6 +192,190 @@ Section SerializedCorrect.
     elim: o => //=.
     move => o l IH.
     by rewrite serialize_deserialize_id_nil /= IH.
+  Qed.
+
+  Instance multi_params_orig_name_tot_map :
+    MultiParamsNameTotalMap multi_params orig_multi_params :=
+  {
+    tot_map_name := id ;
+    tot_map_name_inv := id
+  }.
+
+  Instance multi_params_orig_name_tot_map_bijective :
+    MultiParamsNameTotalMapBijective multi_params_orig_name_tot_map :=
+  {
+    tot_map_name_inv_inverse := fun _ => eq_refl ;
+    tot_map_name_inverse_inv := fun _ => eq_refl
+  }.
+
+  Instance multi_orig_params_pt_msg_map : MultiParamsMsgPartialMap multi_params orig_multi_params :=
+  {
+    pt_map_msg := fun m => 
+      match deserialize m with 
+      | Some (data, _) => Some data
+      | None => None
+      end   
+  }.
+
+  Instance multi_orig_base_params_pt_map : BaseParamsPartialMap base_params orig_base_params :=
+  {
+    pt_map_data := id;
+    pt_map_input := fun i =>
+                     match deserialize i with 
+                     | Some (data, _) => Some data
+                     | None => None
+                     end;
+    pt_map_output := fun o =>
+                     match deserialize o with 
+                     | Some (data, _) => Some data
+                     | None => None
+                     end
+  }.
+
+  Instance multi_orig_params_pt_map_congruency : MultiParamsPartialMapCongruency multi_orig_base_params_pt_map multi_params_orig_name_tot_map multi_orig_params_pt_msg_map :=
+  {
+    pt_init_handlers_eq := fun _ => eq_refl ;
+    pt_net_handlers_some := _ ;
+    pt_net_handlers_none := _ ;
+    pt_input_handlers_some := _ ;
+    pt_input_handlers_none := _
+  }.
+  Proof.
+  - move => me src mg st mg' H_eq.
+    rewrite /pt_mapped_net_handlers.
+    repeat break_let.
+    rewrite /tot_map_name /= /id.
+    rewrite /pt_map_msg /= in H_eq.
+    rewrite /net_handlers /= /serialized_net_handlers in Heqp.
+    move: H_eq Heqp.
+    case H_m: (deserialize mg) => [m'|] => H_eq //.
+    break_let.
+    find_injection.
+    rewrite /serialize_handler_result in Heqp.
+    repeat break_let.
+    find_injection.
+    set sl3 := pt_map_outputs _.
+    set sl2 := pt_map_name_msgs _.
+    have H_eq: sl3 = l3.
+      rewrite /sl3 /pt_map_outputs.
+      clear.
+      elim: l3 => //=.
+      move => o l IH.
+      by rewrite serialize_deserialize_id_nil IH.
+    have H_eq': sl2 = l2.
+      rewrite /sl2 /pt_map_name_msgs /tot_map_name /id /= /id /serialize_name_msg_tuple.
+      clear.
+      elim: l2 => //=.
+      case => [n m] => /=.
+      move => l IH.
+      by rewrite serialize_deserialize_id_nil IH.
+    by rewrite H_eq H_eq'.
+  - move => me src mg st out st' ps H_eq H_eq'.
+    rewrite /net_handlers /= /serialized_net_handlers /= in H_eq'.
+    rewrite /pt_map_msg /= in H_eq.
+    move: H_eq H_eq'.
+    case H_eq_m: (deserialize mg) => [mg'|] H_eq H_eq'; first by repeat break_let.
+    by find_injection.
+  - move => me inp st inp' H_eq.
+    rewrite /pt_mapped_input_handlers.
+    repeat break_let.
+    rewrite /tot_map_name /= /id.
+    rewrite /pt_map_input /= in H_eq.
+    rewrite /input_handlers /= /serialized_input_handlers in Heqp.
+    move: H_eq Heqp.
+    case H_m: (deserialize inp) => [i|] => H_eq //.
+    break_let.
+    find_injection.
+    rewrite /serialize_handler_result in Heqp.
+    repeat break_let.
+    find_injection.
+    set sl3 := pt_map_outputs _.
+    set sl2 := pt_map_name_msgs _.
+    have H_eq: sl3 = l3.
+      rewrite /sl3 /pt_map_outputs.
+      clear.
+      elim: l3 => //=.
+      move => o l IH.
+      by rewrite serialize_deserialize_id_nil IH.
+    have H_eq': sl2 = l2.
+      rewrite /sl2 /pt_map_name_msgs /tot_map_name /id /= /id /serialize_name_msg_tuple.
+      clear.
+      elim: l2 => //=.
+      case => [n m] => /=.
+      move => l IH.
+      by rewrite serialize_deserialize_id_nil IH.
+    by rewrite H_eq H_eq'.
+  - move => me inp st out st' ps H_eq H_eq'.
+    rewrite /input_handlers /= /serialized_input_handlers /= in H_eq'.
+    rewrite /pt_map_msg /= in H_eq.
+    move: H_eq H_eq'.
+    case H_eq_m: (deserialize inp) => [i|] H_eq H_eq'; first by repeat break_let.
+    by find_injection.
+  Qed.
+
+  Lemma pt_map_trace_filterMap : 
+    forall tr, pt_map_trace tr = filterMap deserialize_tr_entry tr.
+  Proof.
+  rewrite /pt_map_packet /tot_map_name /= /deserialize_packet.
+  elim => //=.
+  case => n.
+  case => [i|o] l IH.
+  - rewrite -IH /pt_map_trace_occ /pt_map_input /= /deserialize_tr_entry /=.
+    case: deserialize => //=.
+    by case => i' l'.
+  - rewrite -IH /pt_map_trace_occ /pt_map_outputs /= /deserialize_tr_entry /= /id /=.
+    set fm := fold_right _ _ _.
+    set fm' := filterMap _ _.
+    suff H_eq: fm = fm' by rewrite H_eq.
+    rewrite /fm /fm'.
+    clear.
+    elim: o => //=.
+    move => a l IH.
+    by rewrite -IH.
+  Qed.
+
+  Lemma pt_map_net_deserialize_net : 
+    forall net, pt_map_net net = deserialize_net net.
+  Proof.
+  move => net.
+  rewrite /deserialize_net.
+  rewrite /pt_map_net /pt_map_data /= /id /= /pt_map_packets.
+  set fm := fold_right _ _ _.
+  set fm' := filterMap _ _.
+  suff H_eq: fm = fm' by rewrite H_eq.
+  rewrite /fm /fm'.
+  clear.
+  rewrite /pt_map_packet /tot_map_name /= /deserialize_packet.
+  elim (nwPackets net) => //=.
+  case => [src dst body] /= l IH.
+  rewrite IH.
+  case (deserialize body) => //.
+  by case => [m lb].
+  Qed.
+
+  Theorem step_async_pt_mapped_simulation_1 :
+  forall net net' tr,
+    @step_async _ multi_params net net' tr ->
+    @step_async _ orig_multi_params (deserialize_net net) (deserialize_net net') (filterMap deserialize_tr_entry tr) \/ 
+    (deserialize_net net' = deserialize_net net /\ pt_trace_remove_empty_out (filterMap deserialize_tr_entry tr) = []).
+  Proof.
+  move => net net' tr H_st.
+  rewrite -pt_map_trace_filterMap -2!pt_map_net_deserialize_net.
+  exact: step_async_pt_mapped_simulation_1.
+  Qed.
+
+  Lemma step_async_pt_mapped_simulation_star_1 :
+  forall net tr,
+    @step_async_star _ multi_params step_async_init net tr ->
+    exists tr', @step_async_star _ orig_multi_params step_async_init (deserialize_net net) tr' /\ 
+     pt_trace_remove_empty_out (filterMap deserialize_tr_entry tr) = pt_trace_remove_empty_out tr'.
+  Proof.
+  move => net tr H_st.
+  apply step_async_pt_mapped_simulation_star_1 in H_st.
+  break_exists.
+  break_and.
+  exists x.
+  by rewrite -pt_map_trace_filterMap -pt_map_net_deserialize_net.
   Qed.
 
 End SerializedCorrect.
