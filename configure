@@ -3,8 +3,8 @@
 ## Configures and calls coqproject.sh (https://github.com/dwoos/coqproject)
 
 ## Configuration options for coqproject.sh
-DEPS=(Verdi StructTact)
+DEPS=(Verdi StructTact Cheerios)
 DIRS=(systems extraction/lockserv/coq)
-CANARIES=("Verdi.Verdi" "Build Verdi before building Verdi LockServ" "StructTact.StructTactics" "Build StructTact before building Verdi LockServ")
+CANARIES=("mathcomp.ssreflect.ssreflect" "Verdi requires mathcomp to be installed" "Verdi.Verdi" "Build Verdi before building Verdi LockServ" "StructTact.StructTactics" "Build StructTact before building Verdi LockServ" "Cheerios.Cheerios" "Build Cheerios before building Verdi Lockserv")
 Verdi_DIRS=(core lib systems extraction)
 source script/coqproject.sh
