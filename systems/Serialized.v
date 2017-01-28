@@ -6,6 +6,11 @@ Set Implicit Arguments.
 Section Serialized.
   Context {orig_base_params : BaseParams}.
   Context {orig_multi_params : MultiParams orig_base_params}.
+  Context {orig_failure_params : FailureParams orig_multi_params}.
+  Context {orig_name_overlay_params : NameOverlayParams orig_multi_params}.
+  Context {orig_fail_msg_params : FailMsgParams orig_multi_params}.
+  Context {orig_new_msg_params : NewMsgParams orig_multi_params}.
+
   Context {orig_input_serializer : Serializer input}.
   Context {orig_output_serializer : Serializer output}.
   Context {orig_msg_serializer : Serializer msg}.
@@ -67,14 +72,10 @@ Section Serialized.
     - eauto using no_dup_nodes.
   Defined.
 
-  Context {orig_failure_params : FailureParams orig_multi_params}.
-
   Instance serialized_failure_params : FailureParams serialized_multi_params :=
     {
       reboot := @reboot _ _ orig_failure_params
     }.
-
-  Context {orig_name_overlay_params : NameOverlayParams orig_multi_params}.
 
   Instance serialized_name_overlay_params : NameOverlayParams serialized_multi_params :=
     {
@@ -84,14 +85,10 @@ Section Serialized.
       adjacent_to_irreflexive := @adjacent_to_irreflexive _ _ orig_name_overlay_params
     }.
 
-  Context {orig_fail_msg_params : FailMsgParams orig_multi_params}.
-
   Instance serialized_fail_msg_params : FailMsgParams serialized_multi_params :=
     {
       msg_fail := serialize msg_fail
     }.
-
-  Context {orig_new_msg_params : NewMsgParams orig_multi_params}.
 
   Instance serialized_new_msg_params : NewMsgParams serialized_multi_params :=
     {
@@ -102,3 +99,6 @@ End Serialized.
 Hint Extern 5 (@BaseParams) => apply serialized_base_params : typeclass_instances.
 Hint Extern 5 (@MultiParams _) => apply serialized_multi_params : typeclass_instances.
 Hint Extern 5 (@FailureParams _ _) => apply serialized_failure_params : typeclass_instances.
+Hint Extern 5 (@NameOverlayParams _ _) => apply serialized_name_overlay_params : typeclass_instances.
+Hint Extern 5 (@FailMsgParams _ _) => apply serialized_fail_msg_params : typeclass_instances.
+Hint Extern 5 (@NewMsgParams _ _) => apply serialized_new_msg_params : typeclass_instances.
