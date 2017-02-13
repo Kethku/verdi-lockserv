@@ -8,18 +8,22 @@ Import DeserializerNotations.
 Section LockServSerialize.
   Definition Msg_serialize (msg: Msg) :=
     match msg with
-    | Lock => serialize 0
-    | Unlock => serialize 1
-    | Locked => serialize 2
+    | Lock => [true]
+    | Unlock => [false; true]
+    | Locked => [false; false]
     end.
 
   Definition Msg_deserialize : deserializer Msg :=
-    n <- deserialize ;;
-    match n with
-    | 0 => ret Lock
-    | 1 => ret Unlock
-    | 2 => ret Locked
-    | _ => fail
+    l <- get ;;
+    match l with
+    | [] => fail
+    | true :: l' => put l' ;; ret Lock
+    | false :: l' =>
+      match l' with
+      | [] => fail
+      | true :: l'' => put l'' ;; ret Unlock
+      | false :: l'' => put l'' ;; ret Locked
+      end 
     end.
 
   Lemma Msg_serialize_deserialize_id :
