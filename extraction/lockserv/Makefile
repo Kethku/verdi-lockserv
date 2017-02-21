@@ -7,7 +7,7 @@ MLFILES =
 
 MLFILES_TEST = 
 
-default: LockServMain.native
+default: LockServ.native
 
 $(MLEXTRACTED):
 	+$(MAKE) -C ../.. extraction/lockserv/$@
