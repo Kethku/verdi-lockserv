@@ -5,7 +5,7 @@ module LockServArrangement = struct
   type state = LockServ.data
   type input = LockServ.input
   type output = LockServ.output
-  type msg = msg
+  type msg = LockServ.msg
   type client_id = int
   type res = (output list * state) * ((name * msg) list)
 
@@ -25,4 +25,16 @@ module LockServArrangement = struct
   let failMsg : msg option = Some Fail
   let newMsg : msg option = None
   let debug : bool = true  (* Ask about no input and output in arrangement. Maybe make shim which doesn't have this stuff? *)
+  let debugInput : state -> input -> unit = fun _ _ ->
+    ()
+  let debugRecv : state -> (name * msg) -> unit = fun _ _ ->
+    ()
+  let debugSend : state -> (name * msg) -> unit = fun _ _ ->
+    ()
+  let debugTimeout : state -> unit = fun _ ->
+    ()
+  let createClientId : unit -> client_id = Obj.magic(1)
+  let serializeClientId : client_id -> string = fun _ -> ""
 
+
+  (* Questions: lockserv doesn't have input output or state. Am I able to define an arrangement which does not implement these things? *)
