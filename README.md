@@ -36,4 +36,42 @@ Then, run `./configure` in the root directory.  This will check for the appropri
 
 By default, the script assumes that `Verdi`, `StructTact`, `Cheerios`, and `Verdi Cheerios` are installed in Coq's `user-contrib` directory, but this can be overridden by setting the correct `_PATH` variables, e.g., `Verdi_PATH`.
 
-Finally, run `make` in the root directory.
+Finally, run `make` in the root directory. This will compile the lock server definitions, check the proofs, and finally build an OCaml program from the extracted code called called `LockServMain` in the `extraction/lockserv` directory.
+
+Running LockServ on a cluster
+-----------------------------
+
+`LockServMain` accepts the following command-line options:
+
+```
+-me NAME             name for this node
+-port PORT           port for inputs
+-node NAME,IP:PORT   node in the cluster
+-debug               run in debug mode
+```
+
+Possible node names are `Server`, `Client-0`, `Client-1`, etc.
+
+For example, to run `LockServMain` on a cluster with IP addresses
+`192.168.0.1`, `192.168.0.2`, `192.168.0.3`, input port 8000,
+and port 9000 for inter-node communication, use the following:
+
+    # on 192.168.0.1
+    $ ./LockServMain.native -port 8000 -me Server -node Server,192.168.0.1:9000 \
+                    -node Client-0,192.168.0.2:9000 -node Client-1,192.168.0.3:9000
+
+    # on 192.168.0.2
+    $ ./LockServMain.native -port 8000 -me Client-0 -node Server,192.168.0.1:9000 \
+                    -node Client-0,192.168.0.2:9000 -node Client-1,192.168.0.3:9000
+
+    # on 192.168.0.3
+    $ ./LockServMain.native -port 8000 -me Client-1 -node Server,192.168.0.1:9000 \
+                    -node Client-0,192.168.0.2:9000 -node Client-2,192.168.0.3:9000
+
+There is a simple client in the directory `extraction/lockserv/script` that can be used as follows:
+
+    python -i client.py
+    >>> c=Client('192.168.0.2', 8000)
+    >>> c.send_lock()
+    'Locked'
+    >>> c.send_unlock()
